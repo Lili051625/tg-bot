@@ -7,10 +7,11 @@ app.use(express.json());
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const PORT = process.env.PORT || 3000;
 
-// Инициализация официального SDK
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+const TEXT_MODEL = "gemini-3.1-flash-lite-preview";
 
 const SYSTEM_PROMPT = `Ты — продающий, но адекватный digital-консультант. Ты помогаешь клиентам понять, какие услуги им реально нужны для развития сайта:
 — наполнение сайта под ключ;
@@ -59,7 +60,9 @@ const WELCOME_TEXT = `Здравствуйте! Я помогу понять, к
 Чтобы сразу подсказать по делу, ответьте коротко на 3 вопроса:
 1. Чем занимается ваш бизнес?
 2. У вас уже есть сайт или только планируете запуск?
-3. Что сейчас важнее всего: заявки, видимость в поиске, упаковка услуг или контент?`;
+3. Что сейчас важнее всего: заявки, видимость в поиске, упаковка услуг или контент?
+
+Можете написать текстом или отправить голосовое сообщение 🎤`;
 
 const conversations = new Map();
 const pendingLeads = new Map();
@@ -114,12 +117,55 @@ async function sendTyping(chatId) {
   } catch (e) {}
 }
 
-// ─── Gemini через официальный SDK ───
-async function askGemini(chatId, userMessage) {
+// ─── Скачать файл из Telegram ───
+async function getTelegramFileBuffer(fileId) {
+  const fileInfo = await axios.get(
+    `https://api.telegram.org/bot${TELEGRAM_TOKEN}/getFile?file_id=${fileId}`
+  );
+  const filePath = fileInfo.data.result.file_path;
+  const fileData = await axios.get(
+    `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${filePath}`,
+    { responseType: "arraybuffer" }
+  );
+  return { buffer: Buffer.from(fileData.data), filePath };
+}
+
+// ─── Расшифровка голосового через Groq Whisper ───
+async function transcribeWithGroq(audioBuffer, fileName) {
+  try {
+    const FormData = require("form-data");
+    const form = new FormData();
+    form.append("file", audioBuffer, {
+      filename: fileName || "voice.ogg",
+      contentType: "audio/ogg",
+    });
+    form.append("model", "whisper-large-v3-turbo");
+    form.append("language", "ru");
+    form.append("response_format", "text");
+
+    const response = await axios.post(
+      "https://api.groq.com/openai/v1/audio/transcriptions",
+      form,
+      {
+        headers: {
+          ...form.getHeaders(),
+          Authorization: `Bearer ${GROQ_API_KEY}`,
+        },
+      }
+    );
+
+    return response.data?.trim() || null;
+  } catch (err) {
+    console.error("Groq error:", err.response?.data || err.message);
+    return null;
+  }
+}
+
+// ─── Текстовый ответ через Gemini ───
+async function askGeminiText(chatId, userMessage) {
   addToHistory(chatId, "user", userMessage);
   const history = getHistory(chatId);
 
-  // Формат истории для SDK
   const contents = history.map(m => ({
     role: m.role === "assistant" ? "model" : "user",
     parts: [{ text: m.content }],
@@ -127,7 +173,7 @@ async function askGemini(chatId, userMessage) {
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-lite-preview",
+      model: TEXT_MODEL,
       contents,
       config: {
         systemInstruction: SYSTEM_PROMPT,
@@ -137,20 +183,13 @@ async function askGemini(chatId, userMessage) {
     });
 
     const reply = response.text;
-    if (!reply) throw new Error("Пустой ответ от Gemini");
-
+    if (!reply) throw new Error("Пустой ответ");
     addToHistory(chatId, "assistant", reply);
     return reply;
 
   } catch (err) {
-    console.error("Gemini error:", err.message || JSON.stringify(err));
-
-    if (err.message?.includes("429") || err.message?.includes("RESOURCE_EXHAUSTED")) {
-      return "Подождите немного и напишите снова — превышен лимит запросов.";
-    }
-    if (err.message?.includes("API key")) {
-      return "⚠️ Ошибка ключа Gemini. Проверьте переменную GEMINI_API_KEY.";
-    }
+    console.error("Gemini error:", err.message);
+    if (err.message?.includes("429")) return "Подождите немного и напишите снова.";
     return "Извините, произошла техническая ошибка. Попробуйте ещё раз.";
   }
 }
@@ -207,7 +246,35 @@ app.post("/webhook", async (req, res) => {
 
   const chatId = update.message.chat.id;
   const text = update.message.text;
+  const voice = update.message.voice;
   const userName = update.message.from?.username || update.message.from?.first_name;
+
+  // ── Голосовое сообщение ──
+  if (voice) {
+    await sendTyping(chatId);
+    await sendMessage(chatId, "🎤 Распознаю голосовое...");
+
+    try {
+      const { buffer, filePath } = await getTelegramFileBuffer(voice.file_id);
+      const fileName = filePath.split("/").pop() || "voice.ogg";
+      const transcribed = await transcribeWithGroq(buffer, fileName);
+
+      if (!transcribed) {
+        await sendMessage(chatId, "Не удалось распознать голосовое. Попробуйте написать текстом.", QUICK_KEYBOARD);
+        return;
+      }
+
+      await sendMessage(chatId, `🗣 Вы сказали: "${transcribed}"`);
+      await sendTyping(chatId);
+      const reply = await askGeminiText(chatId, transcribed);
+      await sendMessage(chatId, reply, QUICK_KEYBOARD);
+
+    } catch (err) {
+      console.error("Voice error:", err.message);
+      await sendMessage(chatId, "Ошибка при обработке голосового. Напишите текстом.", QUICK_KEYBOARD);
+    }
+    return;
+  }
 
   if (!text) return;
 
@@ -238,12 +305,12 @@ app.post("/webhook", async (req, res) => {
 
   const messageForAI = BUTTON_MAP[text] || text;
   await sendTyping(chatId);
-  const reply = await askGemini(chatId, messageForAI);
+  const reply = await askGeminiText(chatId, messageForAI);
   await sendMessage(chatId, reply, QUICK_KEYBOARD);
 });
 
 app.get("/", (req, res) => {
-  res.json({ status: "ok", message: "Digital Growth Bot (Gemini SDK) is running 🚀" });
+  res.json({ status: "ok", message: "Digital Growth Bot (Gemini + Groq Voice) 🚀" });
 });
 
 app.listen(PORT, () => {
