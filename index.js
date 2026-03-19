@@ -1,5 +1,6 @@
 const express = require("express");
 const axios = require("axios");
+const { GoogleGenAI } = require("@google/genai");
 
 const app = express();
 app.use(express.json());
@@ -7,6 +8,9 @@ app.use(express.json());
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const PORT = process.env.PORT || 3000;
+
+// Инициализация официального SDK
+const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
 const SYSTEM_PROMPT = `Ты — продающий, но адекватный digital-консультант. Ты помогаешь клиентам понять, какие услуги им реально нужны для развития сайта:
 — наполнение сайта под ключ;
@@ -110,48 +114,42 @@ async function sendTyping(chatId) {
   } catch (e) {}
 }
 
-// ─── Gemini API ───
+// ─── Gemini через официальный SDK ───
 async function askGemini(chatId, userMessage) {
   addToHistory(chatId, "user", userMessage);
   const history = getHistory(chatId);
 
-  // Gemini принимает историю в своём формате
+  // Формат истории для SDK
   const contents = history.map(m => ({
     role: m.role === "assistant" ? "model" : "user",
     parts: [{ text: m.content }],
   }));
 
   try {
-    const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        system_instruction: {
-          parts: [{ text: SYSTEM_PROMPT }],
-        },
-        contents,
-        generationConfig: {
-          maxOutputTokens: 1024,
-          temperature: 0.7,
-        },
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents,
+      config: {
+        systemInstruction: SYSTEM_PROMPT,
+        maxOutputTokens: 1024,
+        temperature: 0.7,
       },
-      { headers: { "Content-Type": "application/json" } }
-    );
+    });
 
-    const reply = response.data.candidates?.[0]?.content?.parts?.[0]?.text;
+    const reply = response.text;
     if (!reply) throw new Error("Пустой ответ от Gemini");
 
     addToHistory(chatId, "assistant", reply);
     return reply;
 
   } catch (err) {
-    const errData = err.response?.data;
-    console.error("Gemini error:", JSON.stringify(errData || err.message));
+    console.error("Gemini error:", err.message || JSON.stringify(err));
 
-    if (errData?.error?.status === "INVALID_ARGUMENT") {
-      return "⚠️ Ошибка: неверный API-ключ Gemini. Проверьте переменную GEMINI_API_KEY в Railway.";
+    if (err.message?.includes("429") || err.message?.includes("RESOURCE_EXHAUSTED")) {
+      return "Подождите немного и напишите снова — превышен лимит запросов.";
     }
-    if (errData?.error?.status === "RESOURCE_EXHAUSTED") {
-      return "⚠️ Превышен лимит запросов Gemini. Попробуйте через минуту.";
+    if (err.message?.includes("API key")) {
+      return "⚠️ Ошибка ключа Gemini. Проверьте переменную GEMINI_API_KEY.";
     }
     return "Извините, произошла техническая ошибка. Попробуйте ещё раз.";
   }
@@ -245,7 +243,7 @@ app.post("/webhook", async (req, res) => {
 });
 
 app.get("/", (req, res) => {
-  res.json({ status: "ok", message: "Digital Growth Bot (Gemini) is running 🚀" });
+  res.json({ status: "ok", message: "Digital Growth Bot (Gemini SDK) is running 🚀" });
 });
 
 app.listen(PORT, () => {
