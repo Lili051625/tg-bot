@@ -127,7 +127,7 @@ async function askGemini(chatId, userMessage) {
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.1-flash-lite",
       contents,
       config: {
         systemInstruction: SYSTEM_PROMPT,
