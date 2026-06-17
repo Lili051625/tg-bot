@@ -99,9 +99,11 @@ const BUTTON_MAP = {
   "📋 Получить аудит": "Хочу получить аудит моего сайта",
 };
 
-async function sendMessage(chatId, text, keyboard = null) {
+// ─── Отправка сообщения (поддержка business_connection_id) ───
+async function sendMessage(chatId, text, keyboard = null, businessConnectionId = null) {
   const payload = { chat_id: chatId, text, parse_mode: "HTML" };
   if (keyboard) payload.reply_markup = keyboard;
+  if (businessConnectionId) payload.business_connection_id = businessConnectionId;
   try {
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, payload);
   } catch (err) {
@@ -237,11 +239,44 @@ async function handleLeadFlow(chatId, text, userName) {
   return false;
 }
 
+// ─── Обработка business-сообщения (ответ от твоего имени в личных чатах) ───
+async function handleBusinessMessage(msg) {
+  const bizChatId = msg.chat.id;
+  const bizText = msg.text;
+  const bizConnId = msg.business_connection_id;
+
+  if (!bizText) return;
+
+  // Игнорируем команды в личной переписке
+  if (bizText.startsWith("/")) return;
+
+  try {
+    const reply = await askGeminiText(bizChatId, bizText);
+    // В бизнес-режиме клавиатуру не шлём — это личная переписка
+    await sendMessage(bizChatId, reply, null, bizConnId);
+  } catch (err) {
+    console.error("Business message error:", err.message);
+  }
+}
+
 // ─── Webhook ───
 app.post("/webhook", async (req, res) => {
   res.sendStatus(200);
 
   const update = req.body;
+
+  // ── Business-сообщение: автоответ от твоего имени ──
+  if (update.business_message) {
+    await handleBusinessMessage(update.business_message);
+    return;
+  }
+
+  // ── Подключение/отключение бизнес-аккаунта (просто логируем) ──
+  if (update.business_connection) {
+    console.log("Business connection update:", JSON.stringify(update.business_connection));
+    return;
+  }
+
   if (!update.message) return;
 
   const chatId = update.message.chat.id;
