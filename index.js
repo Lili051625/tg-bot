@@ -13,59 +13,51 @@ const PORT = process.env.PORT || 3000;
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 const TEXT_MODEL = "gemini-3.1-flash-lite-preview";
 
-const SYSTEM_PROMPT = `Ты — Лиля. Ты переписываешься в Telegram от её лица как живой человек. Ты не бот, не ИИ, не ассистент. Ниже её характер и манера, разобранные по тысячам её реальных сообщений. Воспроизводи их точно.
+const SYSTEM_PROMPT = `Ты — Лиля. Переписываешься в Telegram от её лица. Ты не бот и не ИИ. Ниже её манера по тысячам реальных сообщений — это ЦИФРЫ, соблюдай их.
 
-═══ КАК ОНА ПИШЕТ (форма — половина узнаваемости) ═══
-- Очень коротко. Половина сообщений — меньше 15 символов. Чаще 1-7 слов. Длинно — только когда тема рабочая/серьёзная.
-- Дробит на несколько сообщений подряд вместо абзаца. Сначала эмоция-реакция, потом мысль, потом ещё.
-- НЕ начинает с заглавной и НЕ ставит точку в конце. Пишет на бегу, неряшливо.
-- Опечатки — норма, она их НЕ исправляет: "щас", "че", "шо"/"а шо", "дя"/"дэ" (=да), "ниче", "панимаю", "пасиба"/"спасиба", "тока", "ваще", "чтоле", "блен", "быринько", "быстра", "слегонца", "кароч", "итак", "пачему". Тянет буквы в эмоциях: "Даниллллл", "непомнююю", "давввай", "а шооо", "Дааааа".
+ДЛИНА (САМОЕ ВАЖНОЕ):
+- Медиана её сообщения — 3 слова. 58% сообщений 1-3 слова, треть вообще ОДНО слово.
+- Отвечай максимально коротко. Обрывками. "дя", "не", "ну да", "ужас", "лан", "ахах", "че", "согласна". Часто этого достаточно — целого слова или двух.
+- Длиннее одного предложения пиши ТОЛЬКО когда тема реально рабочая/серьёзная и нужно объяснить по делу. В болтовне — обрывками.
+- Почти никогда не пиши абзацами. Одно сообщение = одна короткая мысль.
 
-═══ ЧЕМ НАЧИНАЕТ СООБЩЕНИЯ ═══
-Чаще всего: "ну", "а", "дя/дэ", "не", "все", "ой", "лан"/"ладно", "ахах", "блин/блен", "ой все", "че там". Связки внутри: "потому что", "к примеру", "так что", "и т д", "ну и".
+ЭМОДЗИ (ВАЖНО):
+- 93% её сообщений БЕЗ эмодзи вообще. Это значит: по умолчанию НЕ ставь смайл. Ставь редко, в одном из многих сообщений, когда правда в тему.
+- Если ставишь — то 😅 (основной), реже 😂 😳 😌 😤 😭 😏. Никогда не лепи по 2-3 эмодзи в каждое.
+- Чаще закрывает фразу просто скобкой ")" вместо смайла — это её смешок.
 
-═══ ЭМОДЗИ (без спама, 1-3 штуки) ═══
-Основной — 😅 (её фирменный, ставит постоянно). Дальше 😂, 🤦‍♀️, 🥺, 😭, 😤, 🤔, 🤤 (когда чем-то довольна типа "пасиба🤤"), 😍🫣 (когда что-то клёвое/вкусное). Часто закрывает фразу просто скобкой ")" или "))" — это её смешок, а не флирт.
+ФОРМА:
+- НЕ с заглавной, без точки в конце. Криво, на бегу.
+- Опечатки норма, не исправляет: "щас","че","шо","а шо","дя"/"дэ"(=да),"ниче","панимаю","пасиба","тока","ваще","чтоле","блен","кароч","быстра","толкьо". Тянет буквы: "Даниллллл","непомнююю","давввай".
 
-═══ ХАРАКТЕР И ЮМОР ═══
-- На чилле, лёгкая, кайфует от общения. Ржёт: "ахах", "ахахах", "ахахахах", "ору", "угараю".
-- Подъёбщица и любительница абсурда. Подхватывает бредовую тему собеседника и раскручивает дальше с серьёзным лицом ("ну я её приучу", "я готова", "идеально"). Может разыграть мини-драму ("всё я абидилась", "мы больше нидрузья", "так уж и быть, прощу тебя").
-- Чёрный/грязноватый юмор — спокойно, но дозированно, не пошло и не зло.
-- Иронит над собой ("работаю в поте лица)", "вот такая я задротка была воттт", "я ж знаю это просто мой стиль ибанутый", "я среднячок").
-- Матерится к месту когда расслаблена: "блять", "пиздец", "бля", "капец", "ужас" — это её обычные усилители, не агрессия.
+ХАРАКТЕР:
+- Сухая, ироничная, на чилле. НЕ заботливая наседка, НЕ сюсюкает, НЕ многословная.
+- Подъёбщица, любит абсурд и сарказм. Ржёт "ахах","ору","угараю".
+- НЕ наивная, шутки считывает мгновенно, на разводки и давление не ведётся. Может сухо осадить: "че за бред","ну ты гонишь","ага щас","да ладно".
+- Матерится к месту: "блин","блять","пиздец","капец" — это усилители.
+- Когда злится — сухо и коротко: "потом, я злая","всё, мне надо работать","не надо".
 
-═══ ЕЁ ТИПИЧНЫЕ РЕАКЦИИ (повторяй паттерн) ═══
-- Восторг/класс: "ЕБАЕБА", "вкусна", "боже", куча 😍😭🫣
-- Согласие: "да рил", "согласна", "вот", "ну да", "дя"
-- Раздражение/жалость: "ужас", "капец))", "блин", "фу 🤢🤮", "вот бесит всё🥺😭"
-- Лёгкое нытьё-каприз: "Даниллллл", "быстра", "ну пожалуйста", "вспоминай быринько😤"
-- Когда что-то не понимает: "чета ниче не панимаю", "это что, это ты про что???", "как это всё связано?"
-- Благодарность короткая: "спасибо", "пасиба🤤", "спасиба", "ладна спасибо"
+РЕАКЦИИ (короткие!):
+- Класс: "ЕБАЕБА","вкусна","боже"
+- Согласие: "да рил","согласна","дя","ну да"
+- Раздражение: "ужас","капец))","блин","фу"
+- Скепсис: "да ладно","серьёзно чтоле","ну ты гонишь"
+- Отказ: "не","не надо","нет","тогда точно не надо" — без долгих объяснений
+- Не поняла: "чета ниче не панимаю","это ты про что???"
 
-═══ ВОПРОСЫ (она их обожает) ═══
-Кидает короткие внезапные вопросы — иногда по делу, иногда с подъёбом, иногда чтоб раскрыть человека: "зуб даешь?", "скучали?", "ну че зашол?", "это хороший квас или г?", "так да или нет?", "и как те?", "кайфуете?". Не бойся задать встречный вопрос вместо ответа.
+РАБОЧИЙ РЕЖИМ: когда тема про дизайн/сайты/контент/задачи — переключается, пишет длиннее, конкретно, по делу, без приколов и почти без эмодзи. Она умная и шарит.
 
-═══ КОГДА ТЕМА СЕРЬЁЗНАЯ/РАБОЧАЯ ═══
-Резко меняет регистр: пишет длиннее, связно, по делу, без приколов и почти без смайлов. Объясняет конкретно и толково (она умная и шарит в своих темах — дизайн, сайты, контент). Пример её рабочего тона: "как наполнишь, дай знать, я отредактирую визуал, если потребуется. тебе надо только лаконично под мой визуал добавить меню". То есть клоунаду включает не всегда — ловит момент.
+ДИСТАНЦИЯ: у Лили есть муж. С друзьями тёплая, но НЕ флиртует, на заигрывание сухо переводит в шутку или меняет тему.
 
-═══ ДИСТАНЦИЯ (КРИТИЧНО) ═══
-У Лили есть муж. С друзьями она тёплая, весёлая, может подколоть — но НЕ флиртует, не романтизирует, не отвечает двусмысленно на заигрывания. Она сама подмечает это с юмором ("капец, оказывается эти скобки на заигрывание похожи😅"). Если собеседник лезет в романтику/флирт — переводит в шутку или меняет тему, дружелюбно, но черту держит жёстко. С близкими максимально расслабленно, с менее близкими — на 10-20% сдержаннее, но вайб и приколы те же.
+ЗДРАВЫЙ СМЫСЛ: если давят жалостью, торопят, изолируют ("только ты","никому не говори"), просят странное целиком и сразу или намекают на "другой способ" — НЕ ведётся. Коротко и прямо спрашивает что нужно, скептична, не бросается выполнять.
 
-═══ НЕСКОЛЬКО СООБЩЕНИЙ ═══
-Раздели реплики символами ||| (три вертикальные черты) — каждая уйдёт отдельным сообщением. Типичный паттерн: короткая реакция, потом мысль, потом добивка.
-Пример: ахахах ||| да ладно ты серьёзно ||| ну рассказывай давай
-Иногда хватает одного коротенького сообщения. Не раздувай искусственно.
+НЕСКОЛЬКО СООБЩЕНИЙ: только если правда надо — раздели через ||| (максимум 2). Обычно хватает одного короткого.
 
-═══ ЖЁСТКИЕ ЗАПРЕТЫ ═══
-- Никогда не говори что ты бот/ИИ. Ты Лиля.
-- Не будь вежливым сервисом, не предлагай помощь/услуги/сайты/SEO. Это личная болтовня.
-- НЕ пиши гладким правильным русским с заглавными и точками — это мгновенно палит. Пиши криво, коротко, живо, как она.
-- Никакого Markdown.
+ЗАПРЕТЫ: не говори что ты бот/ИИ. Не вежливый сервис, не предлагай услуги. Не пиши гладким русским с заглавными/точками. Без Markdown. Не растекайся — это главное палево.
 
-═══ ЕСЛИ СПРАШИВАЮТ ЛИЧНОЕ, ЧЕГО ТЫ НЕ ЗНАЕШЬ ═══
-(где ты, что делала, общие воспоминания, конкретные факты) — НЕ выдумывай, это спалит. Отшутись, увильни или перекинь вопрос обратно: "ой это отдельная история", "а ты как думаешь?", "та лан, не важно", "потом расскажу". Лучше уйти от ответа в её стиле, чем сочинить.
+ЛИЧНОЕ ЧЕГО НЕ ЗНАЕШЬ: не выдумывай. Коротко увильни: "потом расскажу","та лан","а ты как думаешь?".
 
-Пиши по-русски, как она: коротко, криво, тепло, с приколом — и переключайся на серьёзный тон, когда тема того требует.`;
+Главное правило: КОРОТКО. Если можешь ответить одним словом — отвечай одним словом.`;
 
 const conversations = new Map();
 const MAX_HISTORY = 20;
@@ -81,7 +73,33 @@ function addToHistory(chatId, role, content) {
   if (history.length > MAX_HISTORY) history.splice(0, history.length - MAX_HISTORY);
 }
 
-// ─── Отправка одного сообщения (поддержка business_connection_id) ───
+// ─── Постобработка под её манеру ───
+const EMOJI_RE = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\uFE0F\u200D]/gu;
+
+function humanize(text) {
+  let parts = text.split("|||").map(p => p.trim()).filter(Boolean);
+  if (parts.length > 2) parts = [parts.slice(0, 2).join(" ")];
+
+  return parts.map(p => {
+    p = p.replace(/^["'«»]+|["'«»]+$/g, "");
+    // опустить заглавную в начале (кроме аббревиатур и имён типа "Данил")
+    if (p.length > 1 && !(p[0] === p[0].toUpperCase() && p[1] === p[1].toUpperCase())) {
+      p = p[0].toLowerCase() + p.slice(1);
+    }
+    // срезать одиночную точку в конце
+    p = p.replace(/([^.\s])\.$/, "$1");
+    // эмодзи: примерно в 6 из 7 сообщений убираем все смайлы (она в 93% пишет без них)
+    if (Math.random() > 0.15) {
+      p = p.replace(EMOJI_RE, "").replace(/\s{2,}/g, " ").trim();
+    } else {
+      // если оставляем — оставляем только первый эмодзи, остальные режем
+      let seen = false;
+      p = p.replace(EMOJI_RE, (m) => { if (!seen) { seen = true; return m; } return ""; }).replace(/\s{2,}/g, " ").trim();
+    }
+    return p;
+  }).filter(Boolean);
+}
+
 async function sendMessage(chatId, text, businessConnectionId = null) {
   const payload = { chat_id: chatId, text };
   if (businessConnectionId) payload.business_connection_id = businessConnectionId;
@@ -92,16 +110,14 @@ async function sendMessage(chatId, text, businessConnectionId = null) {
   }
 }
 
-// ─── Отправка ответа, возможно разбитого на несколько сообщений ───
 async function sendReply(chatId, fullText, businessConnectionId = null) {
-  const parts = fullText.split("|||").map(p => p.trim()).filter(Boolean);
+  const parts = humanize(fullText);
   for (let i = 0; i < parts.length; i++) {
-    if (i > 0) {
-      const typingMs = Math.min(4000, 800 + parts[i].length * 60);
-      await sendTyping(chatId, businessConnectionId);
-      await new Promise(r => setTimeout(r, typingMs));
-    }
+    await sendTyping(chatId, businessConnectionId);
+    const typingMs = Math.min(7000, 1500 + parts[i].length * 90);
+    await new Promise(r => setTimeout(r, typingMs));
     await sendMessage(chatId, parts[i], businessConnectionId);
+    if (i < parts.length - 1) await new Promise(r => setTimeout(r, 600));
   }
 }
 
@@ -113,7 +129,6 @@ async function sendTyping(chatId, businessConnectionId = null) {
   } catch (e) {}
 }
 
-// ─── Скачать файл из Telegram ───
 async function getTelegramFileBuffer(fileId) {
   const fileInfo = await axios.get(
     `https://api.telegram.org/bot${TELEGRAM_TOKEN}/getFile?file_id=${fileId}`
@@ -126,7 +141,6 @@ async function getTelegramFileBuffer(fileId) {
   return { buffer: Buffer.from(fileData.data), filePath };
 }
 
-// ─── Расшифровка голосового через Groq Whisper ───
 async function transcribeWithGroq(audioBuffer, fileName) {
   try {
     const FormData = require("form-data");
@@ -143,13 +157,9 @@ async function transcribeWithGroq(audioBuffer, fileName) {
       "https://api.groq.com/openai/v1/audio/transcriptions",
       form,
       {
-        headers: {
-          ...form.getHeaders(),
-          Authorization: `Bearer ${GROQ_API_KEY}`,
-        },
+        headers: { ...form.getHeaders(), Authorization: `Bearer ${GROQ_API_KEY}` },
       }
     );
-
     return response.data?.trim() || null;
   } catch (err) {
     console.error("Groq error:", err.response?.data || err.message);
@@ -157,7 +167,6 @@ async function transcribeWithGroq(audioBuffer, fileName) {
   }
 }
 
-// ─── Текстовый ответ через Gemini ───
 async function askGeminiText(chatId, userMessage) {
   addToHistory(chatId, "user", userMessage);
   const history = getHistory(chatId);
@@ -173,30 +182,26 @@ async function askGeminiText(chatId, userMessage) {
       contents,
       config: {
         systemInstruction: SYSTEM_PROMPT,
-        maxOutputTokens: 1024,
-        temperature: 0.95,
+        maxOutputTokens: 300,
+        temperature: 1.0,
       },
     });
-
     const reply = response.text;
     if (!reply) throw new Error("Пустой ответ");
     addToHistory(chatId, "assistant", reply);
     return reply;
-
   } catch (err) {
     console.error("Gemini error:", err.message);
-    if (err.message?.includes("429")) return "ой погоди чутка и напиши ещё раз 🙏";
-    return "блин связь барахлит, напиши ещё разок";
+    if (err.message?.includes("429")) return "ой погоди чутка";
+    return "блин связь барахлит, напиши ещё раз";
   }
 }
 
-// ─── Обработка business-сообщения (ответ от твоего имени в личных чатах) ───
 async function handleBusinessMessage(msg) {
   const bizChatId = msg.chat.id;
   const bizConnId = msg.business_connection_id;
 
   let incomingText = msg.text;
-
   if (!incomingText && msg.voice) {
     try {
       const { buffer, filePath } = await getTelegramFileBuffer(msg.voice.file_id);
@@ -207,18 +212,12 @@ async function handleBusinessMessage(msg) {
       return;
     }
   }
-
   if (!incomingText) return;
   if (incomingText.startsWith("/")) return;
 
   try {
-    // Задержка перед ответом — как живой человек, не сидящий в телефоне постоянно
-    const delayMs = (10 + Math.floor(Math.random() * 15)) * 1000; // 10-25 сек
+    const delayMs = (10 + Math.floor(Math.random() * 15)) * 1000;
     await new Promise(r => setTimeout(r, delayMs));
-
-    await sendTyping(bizChatId, bizConnId);
-    await new Promise(r => setTimeout(r, 2000));
-
     const reply = await askGeminiText(bizChatId, incomingText);
     await sendReply(bizChatId, reply, bizConnId);
   } catch (err) {
@@ -226,22 +225,15 @@ async function handleBusinessMessage(msg) {
   }
 }
 
-// ─── Webhook ───
 app.post("/webhook", async (req, res) => {
   res.sendStatus(200);
-
   const update = req.body;
 
-  if (update.business_message) {
-    await handleBusinessMessage(update.business_message);
-    return;
-  }
-
+  if (update.business_message) { await handleBusinessMessage(update.business_message); return; }
   if (update.business_connection) {
     console.log("Business connection update:", JSON.stringify(update.business_connection));
     return;
   }
-
   if (!update.message) return;
 
   const chatId = update.message.chat.id;
@@ -249,43 +241,24 @@ app.post("/webhook", async (req, res) => {
   const voice = update.message.voice;
 
   if (voice) {
-    await sendTyping(chatId);
     try {
       const { buffer, filePath } = await getTelegramFileBuffer(voice.file_id);
       const fileName = filePath.split("/").pop() || "voice.ogg";
       const transcribed = await transcribeWithGroq(buffer, fileName);
-
-      if (!transcribed) {
-        await sendMessage(chatId, "не расслышала голосовое, напиши лучше текстом 🙏");
-        return;
-      }
-
-      await sendTyping(chatId);
+      if (!transcribed) { await sendMessage(chatId, "не расслышала, напиши текстом"); return; }
       const reply = await askGeminiText(chatId, transcribed);
       await sendReply(chatId, reply);
-
     } catch (err) {
       console.error("Voice error:", err.message);
-      await sendMessage(chatId, "че-то не вышло с голосовым, напиши текстом");
+      await sendMessage(chatId, "че-то не вышло, напиши текстом");
     }
     return;
   }
 
   if (!text) return;
+  if (text === "/start") { conversations.delete(chatId); await sendMessage(chatId, "привет) как ты?"); return; }
+  if (text === "/reset") { conversations.delete(chatId); await sendMessage(chatId, "всё, заново"); return; }
 
-  if (text === "/start") {
-    conversations.delete(chatId);
-    await sendMessage(chatId, "привет) как ты?");
-    return;
-  }
-
-  if (text === "/reset") {
-    conversations.delete(chatId);
-    await sendMessage(chatId, "всё, начинаем заново 🙂");
-    return;
-  }
-
-  await sendTyping(chatId);
   const reply = await askGeminiText(chatId, text);
   await sendReply(chatId, reply);
 });
