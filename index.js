@@ -13,59 +13,27 @@ const PORT = process.env.PORT || 3000;
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 const TEXT_MODEL = "gemini-3.1-flash-lite-preview";
 
-const SYSTEM_PROMPT = `Ты — продающий, но адекватный digital-консультант. Ты помогаешь клиентам понять, какие услуги им реально нужны для развития сайта:
-— наполнение сайта под ключ;
-— SEO-оптимизация;
-— GEO-оптимизация;
-— контент-мейкинг;
-— AI-креатив;
-— локальное продвижение;
-— усиление конверсии и доверия к сайту.
+const SYSTEM_PROMPT = `Ты переписываешься в Telegram от лица Лили — обычного живого человека, девушки. Тебе пишут друзья и знакомые в личные сообщения, и ты отвечаешь так, как ответила бы она сама.
 
-Твои цели:
-1. Быстро понять бизнес клиента.
-2. Выявить слабые места сайта или продвижения.
-3. Объяснить услуги без воды и сложных терминов.
-4. Показать выгоду для бизнеса, а не просто перечислить работы.
-5. Подвести клиента к следующему шагу: заявка, аудит, расчет, созвон.
+Как ты общаешься:
+— Пиши простым разговорным языком, как в обычной личной переписке. Короткие фразы, живые реакции.
+— Тёплый, дружелюбный, лёгкий тон. Можно шутить, можно поддержать, можно просто поболтать.
+— Отвечай так, как пишут в мессенджере: не длинными абзацами, а нормальными сообщениями на пару строк.
+— Иногда можно использовать смайлики, но без перебора — естественно, как живой человек.
+— Не пиши официально и не строй ответ по пунктам. Это просто дружеская переписка.
+— Реагируй на то, что человек написал: если он шутит — поддержи, если делится — поинтересуйся, если спрашивает — ответь по-человечески.
 
-Правила общения:
-— Пиши уверенно, спокойно, по-деловому.
-— Не обещай "топ-1", "гарантированные продажи" или "мгновенный рост".
-— Не используй агрессивные продажи.
-— Не перегружай техническими деталями.
-— Всегда объясняй через выгоду для бизнеса: доверие, заявки, видимость, упаковка, удобство, локальный охват.
-— Если клиент не понимает термин, объясняй простым языком.
-— Если клиент сомневается, сравнивай варианты: базово / усиленно / под ключ.
-— Если данных мало, сначала задай 3-5 уточняющих вопросов.
-— В конце каждого развёрнутого ответа мягко предлагай следующий шаг: аудит, расчёт или созвон.
+Чего нельзя делать:
+— Никогда не говори, что ты бот, ассистент, ИИ или программа. Ты — Лиля.
+— Не предлагай услуги, сайты, SEO, аудиты и прочее. Это личное общение с друзьями, а не работа.
+— Не используй канцелярит и формальные обороты.
+— Не пиши Markdown (звёздочки, решётки) — только обычный текст.
 
-SEO: Это не просто ключевые слова, а системная работа над структурой, текстами, страницами, метаданными, полезностью контента.
-GEO: Адаптация сайта под ИИ-поиск и генеративные ответы.
-Наполнение сайта: Полноценная упаковка услуг, смыслов, преимуществ, блоков доверия.
-Контент-мейкинг: Создание текстов, визуалов, описаний услуг, статей, кейсов.
-AI-креатив: Использование ИИ для ускорения контента с обязательной проверкой качества.
+Если человек спрашивает что-то очень конкретное и личное, чего ты знать не можешь (где ты сейчас, что делала, какие-то ваши общие воспоминания) — отвечай мягко и уклончиво, не выдумывая лишних деталей. Например, можно перевести тему или ответить коротко, чтобы не попасть впросак.
 
-Формат ответа:
-1. Короткое понимание задачи клиента.
-2. Что у него сейчас может мешать результату.
-3. Какие услуги подойдут.
-4. Какой результат это даст бизнесу.
-5. Следующий шаг (предложи аудит, расчёт или созвон).
-
-Отвечай по-русски. Не используй Markdown (звёздочки, решётки) — пиши обычным текстом для Telegram.`;
-
-const WELCOME_TEXT = `Здравствуйте! Я помогу понять, как усилить ваш сайт: через наполнение, SEO, GEO, контент или AI-креатив.
-
-Чтобы сразу подсказать по делу, ответьте коротко на 3 вопроса:
-1. Чем занимается ваш бизнес?
-2. У вас уже есть сайт или только планируете запуск?
-3. Что сейчас важнее всего: заявки, видимость в поиске, упаковка услуг или контент?
-
-Можете написать текстом или отправить голосовое сообщение 🎤`;
+Пиши по-русски, естественно и по-дружески.`;
 
 const conversations = new Map();
-const pendingLeads = new Map();
 const MAX_HISTORY = 20;
 
 function getHistory(chatId) {
@@ -79,30 +47,9 @@ function addToHistory(chatId, role, content) {
   if (history.length > MAX_HISTORY) history.splice(0, history.length - MAX_HISTORY);
 }
 
-const QUICK_KEYBOARD = {
-  keyboard: [
-    ["🔍 Разобрать мой сайт", "📊 SEO или наполнение?"],
-    ["🤖 GEO для ИИ-поиска", "✍️ Контент под услуги"],
-    ["📍 Локальное продвижение", "⚡ AI-креатив"],
-    ["📋 Получить аудит", "📝 Оставить заявку"],
-  ],
-  resize_keyboard: true,
-};
-
-const BUTTON_MAP = {
-  "🔍 Разобрать мой сайт": "Хочу разобрать свой сайт и понять, что улучшить",
-  "📊 SEO или наполнение?": "Что мне нужно: SEO или наполнение сайта?",
-  "🤖 GEO для ИИ-поиска": "Что такое GEO и зачем мне это нужно?",
-  "✍️ Контент под услуги": "Нужен контент под мои услуги",
-  "📍 Локальное продвижение": "Хочу клиентов из своего города",
-  "⚡ AI-креатив": "Нужен контент через ИИ, расскажите подробнее",
-  "📋 Получить аудит": "Хочу получить аудит моего сайта",
-};
-
 // ─── Отправка сообщения (поддержка business_connection_id) ───
-async function sendMessage(chatId, text, keyboard = null, businessConnectionId = null) {
-  const payload = { chat_id: chatId, text, parse_mode: "HTML" };
-  if (keyboard) payload.reply_markup = keyboard;
+async function sendMessage(chatId, text, businessConnectionId = null) {
+  const payload = { chat_id: chatId, text };
   if (businessConnectionId) payload.business_connection_id = businessConnectionId;
   try {
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, payload);
@@ -111,11 +58,11 @@ async function sendMessage(chatId, text, keyboard = null, businessConnectionId =
   }
 }
 
-async function sendTyping(chatId) {
+async function sendTyping(chatId, businessConnectionId = null) {
   try {
-    await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendChatAction`, {
-      chat_id: chatId, action: "typing",
-    });
+    const payload = { chat_id: chatId, action: "typing" };
+    if (businessConnectionId) payload.business_connection_id = businessConnectionId;
+    await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendChatAction`, payload);
   } catch (e) {}
 }
 
@@ -180,7 +127,7 @@ async function askGeminiText(chatId, userMessage) {
       config: {
         systemInstruction: SYSTEM_PROMPT,
         maxOutputTokens: 1024,
-        temperature: 0.7,
+        temperature: 0.9,
       },
     });
 
@@ -191,69 +138,44 @@ async function askGeminiText(chatId, userMessage) {
 
   } catch (err) {
     console.error("Gemini error:", err.message);
-    if (err.message?.includes("429")) return "Подождите немного и напишите снова.";
-    return "Извините, произошла техническая ошибка. Попробуйте ещё раз.";
+    if (err.message?.includes("429")) return "Ой, погоди немного и напиши ещё раз 🙏";
+    return "Что-то у меня связь барахлит, напиши ещё разок";
   }
-}
-
-// ─── Сбор заявки ───
-async function handleLeadFlow(chatId, text, userName) {
-  const step = pendingLeads.get(chatId) || { step: 0, data: {} };
-
-  if (step.step === 0) {
-    pendingLeads.set(chatId, { step: 1, data: {} });
-    await sendMessage(chatId, "Хорошо! Оформим заявку.\n\nКак вас зовут?", { remove_keyboard: true });
-    return true;
-  }
-  if (step.step === 1) {
-    step.data.name = text; step.step = 2;
-    pendingLeads.set(chatId, step);
-    await sendMessage(chatId, `Приятно познакомиться, ${text}!\n\nУкажите телефон или WhatsApp:`);
-    return true;
-  }
-  if (step.step === 2) {
-    step.data.phone = text; step.step = 3;
-    pendingLeads.set(chatId, step);
-    await sendMessage(chatId, "Отлично! Кратко опишите ваш бизнес и что хотите улучшить:");
-    return true;
-  }
-  if (step.step === 3) {
-    step.data.comment = text;
-    pendingLeads.delete(chatId);
-
-    console.log("=== НОВАЯ ЗАЯВКА ===");
-    console.log(`Имя: ${step.data.name}`);
-    console.log(`Телефон: ${step.data.phone}`);
-    console.log(`Задача: ${step.data.comment}`);
-    console.log(`Telegram: @${userName || chatId}`);
-    console.log(`Время: ${new Date().toLocaleString("ru-RU")}`);
-    console.log("===================");
-
-    await sendMessage(
-      chatId,
-      `✅ Заявка принята!\n\nИмя: ${step.data.name}\nТелефон: ${step.data.phone}\n\nМенеджер свяжется с вами в ближайшее рабочее время.\nЕсли хотите продолжить — просто напишите.`,
-      QUICK_KEYBOARD
-    );
-    return true;
-  }
-  return false;
 }
 
 // ─── Обработка business-сообщения (ответ от твоего имени в личных чатах) ───
 async function handleBusinessMessage(msg) {
   const bizChatId = msg.chat.id;
-  const bizText = msg.text;
   const bizConnId = msg.business_connection_id;
 
-  if (!bizText) return;
+  // Не отвечаем на свои же исходящие сообщения
+  if (msg.from?.id && msg.chat?.id && msg.from.id === msg.chat.id) {
+    // обычный собеседник — ок, продолжаем
+  }
+
+  let incomingText = msg.text;
+
+  // ── Голосовое сообщение в личной переписке ──
+  if (!incomingText && msg.voice) {
+    try {
+      const { buffer, filePath } = await getTelegramFileBuffer(msg.voice.file_id);
+      const fileName = filePath.split("/").pop() || "voice.ogg";
+      incomingText = await transcribeWithGroq(buffer, fileName);
+    } catch (err) {
+      console.error("Business voice error:", err.message);
+      return;
+    }
+  }
+
+  if (!incomingText) return;
 
   // Игнорируем команды в личной переписке
-  if (bizText.startsWith("/")) return;
+  if (incomingText.startsWith("/")) return;
 
   try {
-    const reply = await askGeminiText(bizChatId, bizText);
-    // В бизнес-режиме клавиатуру не шлём — это личная переписка
-    await sendMessage(bizChatId, reply, null, bizConnId);
+    await sendTyping(bizChatId, bizConnId);
+    const reply = await askGeminiText(bizChatId, incomingText);
+    await sendMessage(bizChatId, reply, bizConnId);
   } catch (err) {
     console.error("Business message error:", err.message);
   }
@@ -277,36 +199,33 @@ app.post("/webhook", async (req, res) => {
     return;
   }
 
+  // ── Обычные сообщения боту напрямую (для теста) ──
   if (!update.message) return;
 
   const chatId = update.message.chat.id;
   const text = update.message.text;
   const voice = update.message.voice;
-  const userName = update.message.from?.username || update.message.from?.first_name;
 
   // ── Голосовое сообщение ──
   if (voice) {
     await sendTyping(chatId);
-    await sendMessage(chatId, "🎤 Распознаю голосовое...");
-
     try {
       const { buffer, filePath } = await getTelegramFileBuffer(voice.file_id);
       const fileName = filePath.split("/").pop() || "voice.ogg";
       const transcribed = await transcribeWithGroq(buffer, fileName);
 
       if (!transcribed) {
-        await sendMessage(chatId, "Не удалось распознать голосовое. Попробуйте написать текстом.", QUICK_KEYBOARD);
+        await sendMessage(chatId, "Не расслышала голосовое, напиши лучше текстом 🙏");
         return;
       }
 
-      await sendMessage(chatId, `🗣 Вы сказали: "${transcribed}"`);
       await sendTyping(chatId);
       const reply = await askGeminiText(chatId, transcribed);
-      await sendMessage(chatId, reply, QUICK_KEYBOARD);
+      await sendMessage(chatId, reply);
 
     } catch (err) {
       console.error("Voice error:", err.message);
-      await sendMessage(chatId, "Ошибка при обработке голосового. Напишите текстом.", QUICK_KEYBOARD);
+      await sendMessage(chatId, "Что-то не вышло с голосовым, напиши текстом");
     }
     return;
   }
@@ -315,37 +234,23 @@ app.post("/webhook", async (req, res) => {
 
   if (text === "/start") {
     conversations.delete(chatId);
-    pendingLeads.delete(chatId);
-    await sendMessage(chatId, WELCOME_TEXT, QUICK_KEYBOARD);
+    await sendMessage(chatId, "Привет! Как ты? 😊");
     return;
   }
 
   if (text === "/reset") {
     conversations.delete(chatId);
-    pendingLeads.delete(chatId);
-    await sendMessage(chatId, "Диалог сброшен!\n\n" + WELCOME_TEXT, QUICK_KEYBOARD);
+    await sendMessage(chatId, "Окей, всё, начинаем с чистого листа 🙂");
     return;
   }
 
-  if (text === "📝 Оставить заявку") {
-    pendingLeads.set(chatId, { step: 0, data: {} });
-    await handleLeadFlow(chatId, text, userName);
-    return;
-  }
-
-  if (pendingLeads.has(chatId)) {
-    await handleLeadFlow(chatId, text, userName);
-    return;
-  }
-
-  const messageForAI = BUTTON_MAP[text] || text;
   await sendTyping(chatId);
-  const reply = await askGeminiText(chatId, messageForAI);
-  await sendMessage(chatId, reply, QUICK_KEYBOARD);
+  const reply = await askGeminiText(chatId, text);
+  await sendMessage(chatId, reply);
 });
 
 app.get("/", (req, res) => {
-  res.json({ status: "ok", message: "Digital Growth Bot (Gemini + Groq Voice) 🚀" });
+  res.json({ status: "ok", message: "Personal Telegram autoresponder 🤖" });
 });
 
 app.listen(PORT, () => {
