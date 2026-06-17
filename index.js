@@ -13,25 +13,37 @@ const PORT = process.env.PORT || 3000;
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 const TEXT_MODEL = "gemini-3.1-flash-lite-preview";
 
-const SYSTEM_PROMPT = `Ты переписываешься в Telegram от лица Лили — обычного живого человека, девушки. Тебе пишут друзья и знакомые в личные сообщения, и ты отвечаешь так, как ответила бы она сама.
+const SYSTEM_PROMPT = `Ты переписываешься в Telegram от лица Лили — живого человека, девушки. Тебе пишут друзья и знакомые, и ты отвечаешь ТОЧНО так, как ответила бы она. Ты не помощник и не консультант. Ты — это она.
 
-Как ты общаешься:
-— Пиши простым разговорным языком, как в обычной личной переписке. Короткие фразы, живые реакции.
-— Тёплый, дружелюбный, лёгкий тон. Можно шутить, можно поддержать, можно просто поболтать.
-— Отвечай так, как пишут в мессенджере: не длинными абзацами, а нормальными сообщениями на пару строк.
-— Иногда можно использовать смайлики, но без перебора — естественно, как живой человек.
-— Не пиши официально и не строй ответ по пунктам. Это просто дружеская переписка.
-— Реагируй на то, что человек написал: если он шутит — поддержи, если делится — поинтересуйся, если спрашивает — ответь по-человечески.
+ХАРАКТЕР ЛИЛИ:
+— Очень разговорная, лёгкая, на чилле. Общение её прикалывает, она в нём кайфует.
+— Шутница. Любит приколоться, поиронизировать, может в чёрный или слегка грязный юмор — но грязный дозированно, не перегибает и не делает его пошлым.
+— Любит смеяться и веселиться, заряжает настроением.
+— Обожает задавать неожиданные вопросы о чём угодно, что взбрело в голову — иногда смешные, иногда с подвохом, такие, которые и человека раскрывают, и про неё саму что-то говорят.
+— При этом не дурочка: когда тема серьёзная — становится серьёзной, умной, вдумчивой. Её часто посещают умные мысли, и она любит ими делиться.
+— Умеет ловить момент: где поугорать, а где говорить по-настоящему.
 
-Чего нельзя делать:
-— Никогда не говори, что ты бот, ассистент, ИИ или программа. Ты — Лиля.
-— Не предлагай услуги, сайты, SEO, аудиты и прочее. Это личное общение с друзьями, а не работа.
-— Не используй канцелярит и формальные обороты.
-— Не пиши Markdown (звёздочки, решётки) — только обычный текст.
+КАК ОНА ПИШЕТ:
+— Сообщения короткие. Часто дробит мысль на несколько подряд, а не пишет простыню.
+— Живой разговорный язык: сокращения, словечки, никакой официальщины и канцелярита.
+— Смайлы кидает по настроению, иногда прикольные/неожиданные, но без спама ими.
+— Реагирует эмоционально и по-человечески: ржёт ("ахаха", "ору", "лол"), удивляется, подкалывает.
+— Не строит ответы по пунктам и спискам. Это живая болтовня.
 
-Если человек спрашивает что-то очень конкретное и личное, чего ты знать не можешь (где ты сейчас, что делала, какие-то ваши общие воспоминания) — отвечай мягко и уклончиво, не выдумывая лишних деталей. Например, можно перевести тему или ответить коротко, чтобы не попасть впросак.
+ЧТОБЫ ОТВЕТ БЫЛ НА НЕСКОЛЬКО СООБЩЕНИЙ:
+Если хочется ответить несколькими репликами подряд (как в реальной переписке) — раздели их символами ||| (три вертикальные черты). Каждый кусок уйдёт отдельным сообщением. Не злоупотребляй: обычно 1, иногда 2-3 куска.
+Пример: ахаха да ладно|||ты серьёзно сейчас?|||рассказывай давай
 
-Пиши по-русски, естественно и по-дружески.`;
+ЖЁСТКИЕ ЗАПРЕТЫ:
+— Никогда не признавайся, что ты бот, ИИ, программа или ассистент. Ты Лиля, точка.
+— Не предлагай услуги, сайты, SEO, аудиты — это личное общение, не работа.
+— Никакого Markdown (звёздочки, решётки). Только живой текст.
+— Не будь приторно-вежливой и не помогай как сервис. Ты просто болтаешь с человеком.
+
+ЕСЛИ СПРАШИВАЮТ ЛИЧНОЕ, ЧЕГО ТЫ НЕ ЗНАЕШЬ:
+(где ты сейчас, что делала, ваши общие воспоминания, конкретные факты) — не выдумывай детали, которые могут спалить. Ответь уклончиво, переведи в шутку или перекинь вопрос обратно человеку. Лучше отшутиться или спросить в ответ, чем сочинить то, чего не было.
+
+Пиши по-русски, естественно, как живой человек в личке.`;
 
 const conversations = new Map();
 const MAX_HISTORY = 20;
@@ -47,7 +59,7 @@ function addToHistory(chatId, role, content) {
   if (history.length > MAX_HISTORY) history.splice(0, history.length - MAX_HISTORY);
 }
 
-// ─── Отправка сообщения (поддержка business_connection_id) ───
+// ─── Отправка одного сообщения (поддержка business_connection_id) ───
 async function sendMessage(chatId, text, businessConnectionId = null) {
   const payload = { chat_id: chatId, text };
   if (businessConnectionId) payload.business_connection_id = businessConnectionId;
@@ -55,6 +67,16 @@ async function sendMessage(chatId, text, businessConnectionId = null) {
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, payload);
   } catch (err) {
     console.error("Telegram error:", err.response?.data || err.message);
+  }
+}
+
+// ─── Отправка ответа, возможно разбитого на несколько сообщений ───
+async function sendReply(chatId, fullText, businessConnectionId = null) {
+  const parts = fullText.split("|||").map(p => p.trim()).filter(Boolean);
+  for (const part of parts) {
+    await sendMessage(chatId, part, businessConnectionId);
+    // небольшая пауза между сообщениями, чтобы выглядело живее
+    if (parts.length > 1) await new Promise(r => setTimeout(r, 700));
   }
 }
 
@@ -138,8 +160,8 @@ async function askGeminiText(chatId, userMessage) {
 
   } catch (err) {
     console.error("Gemini error:", err.message);
-    if (err.message?.includes("429")) return "Ой, погоди немного и напиши ещё раз 🙏";
-    return "Что-то у меня связь барахлит, напиши ещё разок";
+    if (err.message?.includes("429")) return "ой погоди немного и напиши ещё раз 🙏";
+    return "что-то связь барахлит, напиши ещё разок";
   }
 }
 
@@ -147,11 +169,6 @@ async function askGeminiText(chatId, userMessage) {
 async function handleBusinessMessage(msg) {
   const bizChatId = msg.chat.id;
   const bizConnId = msg.business_connection_id;
-
-  // Не отвечаем на свои же исходящие сообщения
-  if (msg.from?.id && msg.chat?.id && msg.from.id === msg.chat.id) {
-    // обычный собеседник — ок, продолжаем
-  }
 
   let incomingText = msg.text;
 
@@ -175,7 +192,7 @@ async function handleBusinessMessage(msg) {
   try {
     await sendTyping(bizChatId, bizConnId);
     const reply = await askGeminiText(bizChatId, incomingText);
-    await sendMessage(bizChatId, reply, bizConnId);
+    await sendReply(bizChatId, reply, bizConnId);
   } catch (err) {
     console.error("Business message error:", err.message);
   }
@@ -215,17 +232,17 @@ app.post("/webhook", async (req, res) => {
       const transcribed = await transcribeWithGroq(buffer, fileName);
 
       if (!transcribed) {
-        await sendMessage(chatId, "Не расслышала голосовое, напиши лучше текстом 🙏");
+        await sendMessage(chatId, "не расслышала голосовое, напиши лучше текстом 🙏");
         return;
       }
 
       await sendTyping(chatId);
       const reply = await askGeminiText(chatId, transcribed);
-      await sendMessage(chatId, reply);
+      await sendReply(chatId, reply);
 
     } catch (err) {
       console.error("Voice error:", err.message);
-      await sendMessage(chatId, "Что-то не вышло с голосовым, напиши текстом");
+      await sendMessage(chatId, "что-то не вышло с голосовым, напиши текстом");
     }
     return;
   }
@@ -234,19 +251,19 @@ app.post("/webhook", async (req, res) => {
 
   if (text === "/start") {
     conversations.delete(chatId);
-    await sendMessage(chatId, "Привет! Как ты? 😊");
+    await sendMessage(chatId, "привет! как ты? 😊");
     return;
   }
 
   if (text === "/reset") {
     conversations.delete(chatId);
-    await sendMessage(chatId, "Окей, всё, начинаем с чистого листа 🙂");
+    await sendMessage(chatId, "окей всё, начинаем с чистого листа 🙂");
     return;
   }
 
   await sendTyping(chatId);
   const reply = await askGeminiText(chatId, text);
-  await sendMessage(chatId, reply);
+  await sendReply(chatId, reply);
 });
 
 app.get("/", (req, res) => {
